@@ -1,0 +1,45 @@
+[tool.poetry]
+# Even though we're using uv, we follow the Poetry style for dependency specification
+# as it's the most common and standard way to list dependencies in pyproject.toml.
+name = "rag-llm-project"
+version = "0.1.0"
+description = "Large-scale RAG system for legal documents"
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "your_project_name"}] # Change this to your project structure
+
+[tool.poetry.dependencies]
+python = "^3.10" # Specify the Python version you need
+
+# CORE FRAMEWORK & RAG
+llama-index = "*"
+llama-index-llms-anthropic = "*"
+llama-index-embeddings-huggingface = "*"
+python-dotenv = "*"
+
+# DATA PROCESSING & SCALABILITY (The "Engine" Components)
+# NOTE: pyspark and tika often have complex non-Python dependencies.
+# Conda is often better for these, but we list them for completeness.
+pyspark = "*"
+tika = "*"
+
+# DATABASE CONNECTORS (for Agent 1: Metadata Filter)
+psycopg2-binary = "*"
+
+# AGENTIC/ML OPTIMIZATION
+fastembed = { version = "*", optional = true }
+sentence-transformers = { version = "*", optional = true }
+
+# OPTIONAL: For Re-Ranking (Future Task 2.3)
+cohere-rerank = { version = "*", optional = true }
+
+# [tool.poetry.group.dev.dependencies] (optional: for testing tools like pytest)
+# pytest = "*"
+
+[build-system]
+requires = ["poetry-core"] # uv supports Poetry/PDM/Rye/Hatchlock specs
+build-backend = "poetry.core.masonry.api"
+
+# [tool.uv]
+# lock-mode = "hash" # Example of uv specific config if needed
