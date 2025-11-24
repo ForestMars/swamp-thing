@@ -10,7 +10,7 @@ readme = "README.md"
 packages = [{include = "your_project_name"}] # Change this to your project structure
 
 [tool.poetry.dependencies]
-python = "^3.10" # Specify the Python version you need
+python = "^3.13" # Specify the Python version you need
 
 # CORE FRAMEWORK & RAG
 llama-index = "*"
