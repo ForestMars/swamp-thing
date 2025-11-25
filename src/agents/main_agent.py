@@ -50,24 +50,29 @@ system_prompt = (
 # Create agent based on what's available
 if AGENT_TYPE == "ReActAgent":
     try:
-        # Try the modern API
-        final_orchestrator_agent = ReActAgent(
-            tools=tools,
-            llm=llm,
-            verbose=True,
-        )
-        # Set system prompt if possible
-        if hasattr(final_orchestrator_agent, 'system_prompt'):
-            final_orchestrator_agent.system_prompt = system_prompt
-    except TypeError:
-        # Fallback: create with AgentRunner
+        # Try creating ReActAgent with AgentRunner pattern
         from llama_index.core.agent import AgentRunner, ReActAgentWorker
+        
         agent_worker = ReActAgentWorker.from_tools(
             tools=tools,
             llm=llm,
             verbose=True,
         )
         final_orchestrator_agent = AgentRunner(agent_worker)
+        print("[INFO] Created ReActAgent using AgentRunner pattern")
+        
+    except Exception as e:
+        print(f"[WARNING] Could not create ReActAgent: {e}")
+        # Fallback to direct ReActAgent instantiation
+        try:
+            final_orchestrator_agent = ReActAgent(
+                tools=tools,
+                llm=llm,
+                verbose=True,
+            )
+        except Exception as e2:
+            print(f"[ERROR] Both ReActAgent methods failed: {e2}")
+            raise
 
 elif AGENT_TYPE == "AgentRunner":
     agent_worker = ReActAgentWorker.from_tools(
@@ -102,14 +107,29 @@ def execute_agent_query(user_query: str):
     print(f"\n[ORCHESTRATOR] Starting query for: {user_query}")
     
     try:
-        # Try chat method first (modern API)
+        # Debug: print available methods
+        available_methods = [m for m in dir(final_orchestrator_agent) if not m.startswith('_')]
+        print(f"[DEBUG] Available agent methods: {available_methods[:10]}...")  # Show first 10
+        
+        # Try different methods in order of preference
         if hasattr(final_orchestrator_agent, 'chat'):
+            print("[DEBUG] Using 'chat' method")
             response = final_orchestrator_agent.chat(user_query)
-        # Fallback to query method
         elif hasattr(final_orchestrator_agent, 'query'):
+            print("[DEBUG] Using 'query' method")
             response = final_orchestrator_agent.query(user_query)
+        elif hasattr(final_orchestrator_agent, 'run'):
+            print("[DEBUG] Using 'run' method")
+            response = final_orchestrator_agent.run(user_query)
+        elif hasattr(final_orchestrator_agent, 'achat'):
+            print("[DEBUG] Using 'achat' method (async, running sync)")
+            import asyncio
+            response = asyncio.run(final_orchestrator_agent.achat(user_query))
         else:
-            raise AttributeError("Agent has neither 'chat' nor 'query' method")
+            raise AttributeError(
+                f"Agent has none of the expected methods (chat, query, run, achat). "
+                f"Available methods: {available_methods}"
+            )
         
         print("\n[ORCHESTRATOR] Final Answer Received.")
         return str(response)
