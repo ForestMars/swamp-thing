@@ -43,19 +43,26 @@ psql -h $DB_HOST -U $DB_USER -d $RAG_DB -c "$TABLE_SQL"
 
 # --- 5. CREATE METADATA TABLE ---
 echo "5. Creating document_metadata_catalog table in $METADATA_DB..."
-METADATA_TABLE_SQL=$(cat <<EOF
+psql -h $DB_HOST -U $DB_USER -d $METADATA_DB << 'EOF'
 CREATE TABLE IF NOT EXISTS document_metadata_catalog (
     id TEXT PRIMARY KEY,
-    topic TEXT,
+    cluster_id INTEGER,
     date DATE,
     jurisdiction TEXT,
     doc_path TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
-EOF
-)
 
-psql -h $DB_HOST -U $DB_USER -d $METADATA_DB -c "$METADATA_TABLE_SQL"
+CREATE TABLE IF NOT EXISTS document_clusters (
+    cluster_id SERIAL PRIMARY KEY,
+    cluster_name TEXT NOT NULL,
+    doc_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_cluster ON document_metadata_catalog(cluster_id);
+EOF
 
 echo ""
 echo "✅ Database $RAG_DB and $METADATA_DB fully configured"
