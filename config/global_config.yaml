@@ -1,0 +1,44 @@
+# -----------------------------------------------------------------------
+# GLOBAL APPLICATION CONFIGURATION: RAG, LLM & INFRASTRUCTURE DEFAULTS
+# Defines stable settings used across all domains/clients.
+# -----------------------------------------------------------------------
+
+# --- LLM SETTINGS (Agent 3: Synthesis & Reasoning) ---
+# The primary model used for final synthesis, summarization, and complex reasoning.
+llm_model: "gemma3"
+# API Provider for the LLM. Key must be set as an environment variable (e.g., ANTHROPIC_API_KEY).
+# Options: anthropic, openai, google, ollama, azureopenai, huggingface
+llm_provider: "ollama" 
+# LLM randomness: Lower (closer to 0.0) is more factual/deterministic (best for legal).
+llm_temperature: 0.1
+
+# --- EMBEDDING SETTINGS (Task 1.3: Indexing and Retrieval) ---
+# The model used for semantic vectorization. Must be hosted locally or via an API.
+embedding_model_uri: "nomic-embed-text" 
+# The provider for the embedding model.
+# Options: ollama, huggingface_local, openai, cohere, google
+embedding_provider: "ollama"           
+# CRITICAL: Base URL for the local Ollama service. Only required if provider is 'ollama'.
+ollama_base_url: "http://ollama-svc.internal.svc:11434"
+# Default batch size for parallel embedding. Optimize for GPU/CPU memory.
+embedding_batch_size: 32
+
+# --- DOCUMENT PARSING (Task 1.2: Cloud-Native Extraction) ---
+# Endpoint URL for the intelligent document parsing service (e.g., AWS Textract Proxy).
+# This extracts clean text and tables from complex PDF/DOCX files.
+document_parser_url: "http://textract-proxy.internal.svc:8080/extract" 
+# Timeout in seconds for the external parsing service.
+parser_timeout_sec: 120
+
+# --- CHUNKING DEFAULTS (Applied by LlamaIndex Node Parser) ---
+# Maximum number of tokens per semantic chunk. Must be less than LLM context window.
+chunk_size: 512
+# Number of tokens to overlap between adjacent chunks to maintain context continuity.
+chunk_overlap: 100
+
+# --- RETRIEVAL OPTIMIZATION (Future Task 2.3: Re-Ranking) ---
+# The model used for scoring and re-ordering retrieved chunks before synthesis.
+# Options: cohere, bge-reranker (local), sentence-transformer-reranker (local)
+reranker_model: "cohere-rerank-v3.0"
+reranker_provider: "cohere" # Options: cohere, huggingface_local, None
+reranker_top_n: 5          # Number of top chunks to retain after reranking (passed to LLM)
