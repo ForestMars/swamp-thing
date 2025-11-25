@@ -11,7 +11,11 @@ from sqlalchemy import create_engine, text
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings, StorageContext
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
+from llama_index.llms.ollama import Ollama
 import hashlib
+import numpy as np
+from sklearn.cluster import KMeans
+from collections import Counter
 
 # Configuration
 LAKE_DIR = Path.home() / "lake"
@@ -19,6 +23,85 @@ METADATA_DB_URI = "postgresql://rag_user:wrinklepants@localhost:5432/metadata_ca
 VECTOR_DB_URI = "postgresql://rag_user:wrinklepants@localhost:5432/rag_db"
 OLLAMA_URL = "http://localhost:11434"
 EMBED_MODEL = "nomic-embed-text:latest"
+LLM_MODEL = "qwen2.5:7b"
+
+def classify_document(content: str) -> str:
+    """Use LLM to classify document into a category."""
+    # Get first 1000 chars for classification
+    sample = content[:1000]
+    
+    prompt = f"""Classify this document into ONE of these categories:
+- fiction: creative writing, stories, novels, narratives
+- non-fiction: essays, articles, analysis, factual writing
+- technical: code, documentation, specifications
+
+Document excerpt:
+{sample}
+
+Category (return ONLY the category name):"""
+    
+    response = Settings.llm.complete(prompt)
+    category = response.text.strip().lower()
+    
+    # Validate and default
+    valid_categories = ["fiction", "non-fiction", "technical"]
+    if category not in valid_categories:
+        category = "uncategorized"
+    
+    return category
+
+
+def auto_cluster_documents(documents, embeddings, n_clusters=None):
+    """
+    Automatically discover clusters in the document collection.
+    If n_clusters is None, tries to detect optimal number (2-5 range for now).
+    """
+    if len(documents) < 2:
+        return {0: [0]}, ["cluster_0"]
+    
+    # Convert embeddings to numpy array
+    X = np.array(embeddings)
+    
+    # Auto-detect number of clusters if not specified
+    if n_clusters is None:
+        # For small collections, try 2-4 clusters and pick best
+        max_clusters = min(len(documents) - 1, 5)
+        if len(documents) >= 4:
+            n_clusters = 2  # Start with 2 for your test case
+        else:
+            n_clusters = 2
+    
+    # Perform clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    cluster_labels = kmeans.fit_predict(X)
+    
+    # Group documents by cluster
+    clusters = {}
+    for idx, label in enumerate(cluster_labels):
+        if label not in clusters:
+            clusters[label] = []
+        clusters[label].append(idx)
+    
+    # Generate cluster names based on content
+    cluster_names = []
+    for cluster_id in sorted(clusters.keys()):
+        doc_indices = clusters[cluster_id]
+        # Sample first doc in cluster for naming
+        sample_doc = documents[doc_indices[0]]
+        sample_text = sample_doc.text[:500]
+        
+        # Ask LLM to name the cluster
+        prompt = f"""Based on this document sample, suggest a SHORT category name (1-2 words):
+
+{sample_text}
+
+Category name:"""
+        
+        response = Settings.llm.complete(prompt)
+        name = response.text.strip().lower().replace(" ", "_")
+        cluster_names.append(name)
+    
+    return clusters, cluster_names
 
 print("=" * 60)
 print("DOCUMENT INGESTION SCRIPT")
@@ -30,6 +113,15 @@ Settings.embed_model = OllamaEmbedding(
     model_name=EMBED_MODEL,
     base_url=OLLAMA_URL
 )
+
+# Also setup LLM for classification
+Settings.llm = Ollama(
+    model=LLM_MODEL,
+    base_url=OLLAMA_URL,
+    temperature=0.1,
+    request_timeout=30.0,
+)
+print(f"✅ Using LLM: {LLM_MODEL}")
 print(f"✅ Using embeddings: {EMBED_MODEL}")
 
 # Load documents
@@ -45,47 +137,58 @@ print("\n3. Connecting to metadata database...")
 metadata_engine = create_engine(METADATA_DB_URI)
 print("✅ Connected to metadata_catalog")
 
-# Insert metadata
-print("\n4. Inserting document metadata...")
+# Get embeddings for clustering
+print("\n4. Generating embeddings for clustering...")
+doc_embeddings = []
+for doc in documents:
+    embedding = Settings.embed_model.get_text_embedding(doc.text[:1000])  # Sample for speed
+    doc_embeddings.append(embedding)
+print(f"✅ Generated {len(doc_embeddings)} embeddings")
+
+# Auto-cluster documents
+print("\n5. Auto-clustering documents...")
+clusters, cluster_names = auto_cluster_documents(documents, doc_embeddings)
+print(f"✅ Discovered {len(clusters)} clusters:")
+for cluster_id, doc_indices in clusters.items():
+    print(f"   - {cluster_names[cluster_id]}: {len(doc_indices)} documents")
+
+# Insert metadata with cluster assignments
+print("\n6. Inserting document metadata with clusters...")
 with metadata_engine.connect() as conn:
-    for doc in documents:
-        # Generate document ID from filename
-        filename = doc.metadata.get('file_name', 'unknown')
-        doc_id = hashlib.md5(filename.encode()).hexdigest()[:12]
+    for cluster_id, doc_indices in clusters.items():
+        cluster_name = cluster_names[cluster_id]
         
-        # Extract metadata (you can customize this based on your needs)
-        file_path = doc.metadata.get('file_path', '')
-        
-        # For this example, we'll use simple metadata
-        # You can enhance this to parse actual metadata from document content
-        topic = "general writing"  # Could be extracted from content
-        date = datetime.now().date()
-        jurisdiction = "personal"
-        
-        # Insert or update
-        insert_sql = text("""
-            INSERT INTO document_metadata_catalog (id, topic, date, jurisdiction, doc_path)
-            VALUES (:id, :topic, :date, :jurisdiction, :doc_path)
-            ON CONFLICT (id) DO UPDATE SET
-                topic = EXCLUDED.topic,
-                date = EXCLUDED.date,
-                jurisdiction = EXCLUDED.jurisdiction,
-                doc_path = EXCLUDED.doc_path
-        """)
-        
-        conn.execute(insert_sql, {
-            "id": doc_id,
-            "topic": topic,
-            "date": date,
-            "jurisdiction": jurisdiction,
-            "doc_path": file_path
-        })
-        conn.commit()
-        
-        print(f"   ✅ Inserted metadata for: {filename} (ID: {doc_id})")
+        for idx in doc_indices:
+            doc = documents[idx]
+            filename = doc.metadata.get('file_name', 'unknown')
+            doc_id = hashlib.md5(filename.encode()).hexdigest()[:12]
+            file_path = doc.metadata.get('file_path', '')
+            date = datetime.now().date()
+            
+            # Insert or update
+            insert_sql = text("""
+                INSERT INTO document_metadata_catalog (id, topic, date, jurisdiction, doc_path)
+                VALUES (:id, :topic, :date, :jurisdiction, :doc_path)
+                ON CONFLICT (id) DO UPDATE SET
+                    topic = EXCLUDED.topic,
+                    date = EXCLUDED.date,
+                    jurisdiction = EXCLUDED.jurisdiction,
+                    doc_path = EXCLUDED.doc_path
+            """)
+            
+            conn.execute(insert_sql, {
+                "id": doc_id,
+                "topic": cluster_name,
+                "date": date,
+                "jurisdiction": f"cluster_{cluster_id}",
+                "doc_path": file_path
+            })
+            conn.commit()
+            
+            print(f"   ✅ {filename} → [{cluster_name}] (ID: {doc_id})")
 
 # Setup vector store
-print("\n5. Setting up vector store...")
+print("\n7. Setting up vector store...")
 vector_store = PGVectorStore.from_params(
     database="rag_db",
     host="localhost",
@@ -98,7 +201,7 @@ vector_store = PGVectorStore.from_params(
 print("✅ Connected to vector store")
 
 # Create index and store embeddings
-print("\n6. Creating embeddings and storing in vector database...")
+print("\n8. Creating full embeddings and storing in vector database...")
 storage_context = StorageContext.from_defaults(vector_store=vector_store)
 index = VectorStoreIndex.from_documents(
     documents,
@@ -108,11 +211,17 @@ index = VectorStoreIndex.from_documents(
 print("✅ Documents embedded and stored")
 
 # Verify
-print("\n7. Verifying ingestion...")
+print("\n9. Verifying ingestion...")
 with metadata_engine.connect() as conn:
     result = conn.execute(text("SELECT COUNT(*) FROM document_metadata_catalog"))
     count = result.scalar()
     print(f"✅ Metadata records: {count}")
+    
+    # Show cluster distribution
+    result = conn.execute(text("SELECT topic, COUNT(*) FROM document_metadata_catalog GROUP BY topic"))
+    print("\nCluster distribution:")
+    for row in result:
+        print(f"   - {row[0]}: {row[1]} documents")
 
 print("\n" + "=" * 60)
 print("INGESTION COMPLETE!")
