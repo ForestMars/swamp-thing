@@ -29,8 +29,6 @@ psql -h $DB_HOST -U $CURRENT_USER -d $RAG_DB -c "CREATE EXTENSION IF NOT EXISTS 
 # --- 4. CREATE VECTOR TABLE ---
 echo "4. Creating document_vectors table in $RAG_DB..."
 TABLE_SQL=$(cat <<EOF
-DROP TABLE IF EXISTS legal_document_vectors CASCADE;
-
 CREATE TABLE IF NOT EXISTS document_vectors (
     id VARCHAR(512) PRIMARY KEY,
     text TEXT,

@@ -89,9 +89,10 @@ print("\n5. Setting up vector store...")
 vector_store = PGVectorStore.from_params(
     database="rag_db",
     host="localhost",
+    port="5432",
     password="wrinklepants",
     user="rag_user",
-    table_name="document_vectors",  # Fixed: use generic name
+    table_name="document_vectors",
     embed_dim=768,
 )
 print("✅ Connected to vector store")
