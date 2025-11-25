@@ -1906,6 +1906,7 @@ dependencies = [
     { name = "pyspark" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
+    { name = "scikit-learn" },
     { name = "tika" },
 ]
 
@@ -1922,6 +1923,7 @@ requires-dist = [
     { name = "pyspark" },
     { name = "python-dotenv" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "scikit-learn", specifier = ">=1.7.2" },
     { name = "tika" },
 ]
 
