@@ -1,46 +1,63 @@
 #!/bin/bash
 # --------------------------------------------------------------------------
 # DATABASE SETUP SCRIPT: RAG PGVector Prerequisites
-# This script ensures the PostgreSQL database and extensions exist.
-#
-# NOTE: Replace 'rag_user', 'password', and 'rag_db' with your actual values.
-# The user executing this script must have SUPERUSER privileges.
 # --------------------------------------------------------------------------
 
-# --- CONFIGURATION (Must match values used in /config/domain_preferences.yaml) ---
+CURRENT_USER=$(whoami)
+echo "Current OS User: $CURRENT_USER"
+
+# --- CONFIGURATION ---
 DB_USER="rag_user"
-DB_PASS="password"
 DB_HOST="localhost"
-DB_NAME="rag_db"
+RAG_DB="rag_db"
+METADATA_DB="metadata_catalog"
 
-# --- 1. CREATE DATABASE (If it doesn't exist) ---
-echo "1. Checking/Creating database: $DB_NAME"
-psql -h $DB_HOST -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1 || \
-psql -h $DB_HOST -U postgres -c "CREATE DATABASE $DB_NAME OWNER $DB_USER ENCODING 'UTF8';"
+# --- 1. CREATE RAG_DB ---
+echo "1. Checking/Creating database: $RAG_DB"
+psql -h $DB_HOST -U $CURRENT_USER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$RAG_DB'" | grep -q 1 || \
+psql -h $DB_HOST -U $CURRENT_USER -d postgres -c "CREATE DATABASE $RAG_DB OWNER $DB_USER ENCODING 'UTF8';"
 
-# --- 2. CREATE PGVECTOR EXTENSION ---
-# The 'vector' extension MUST be enabled within the target database.
-echo "2. Enabling pgvector extension in $DB_NAME..."
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS vector;"
+# --- 2. CREATE METADATA_DB ---
+echo "2. Checking/Creating database: $METADATA_DB"
+psql -h $DB_HOST -U $CURRENT_USER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$METADATA_DB'" | grep -q 1 || \
+psql -h $DB_HOST -U $CURRENT_USER -d postgres -c "CREATE DATABASE $METADATA_DB OWNER $DB_USER ENCODING 'UTF8';"
 
-# --- 3. EXPLICIT TABLE DEFINITION (FOR CLARITY/VERIFICATION) ---
-# NOTE: While LlamaIndex creates this implicitly, we explicitly define the structure
-# for maintenance visibility.
-echo "3. Creating or verifying table structure: legal_document_vectors"
+# --- 3. ENABLE PGVECTOR ---
+echo "3. Enabling pgvector extension in $RAG_DB..."
+psql -h $DB_HOST -U $CURRENT_USER -d $RAG_DB -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
+# --- 4. CREATE VECTOR TABLE ---
+echo "4. Creating document_vectors table in $RAG_DB..."
 TABLE_SQL=$(cat <<EOF
-CREATE TABLE IF NOT EXISTS legal_document_vectors (
+DROP TABLE IF EXISTS legal_document_vectors CASCADE;
+
+CREATE TABLE IF NOT EXISTS document_vectors (
     id VARCHAR(512) PRIMARY KEY,
     text TEXT,
-    -- metadata_ stores LlamaIndex Node metadata (JSONB is efficient for unstructured data)
     metadata_ JSONB,
     node_id VARCHAR(512),
-    -- The vector column: 768 dimensions for nomic-embed-text (Ollama)
     embedding VECTOR(768)
 );
 EOF
 )
 
-psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "$TABLE_SQL"
+psql -h $DB_HOST -U $DB_USER -d $RAG_DB -c "$TABLE_SQL"
 
-echo "Database $DB_NAME is fully configured and ready for LlamaIndex ingestion."
+# --- 5. CREATE METADATA TABLE ---
+echo "5. Creating document_metadata_catalog table in $METADATA_DB..."
+METADATA_TABLE_SQL=$(cat <<EOF
+CREATE TABLE IF NOT EXISTS document_metadata_catalog (
+    id TEXT PRIMARY KEY,
+    topic TEXT,
+    date DATE,
+    jurisdiction TEXT,
+    doc_path TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+EOF
+)
+
+psql -h $DB_HOST -U $DB_USER -d $METADATA_DB -c "$METADATA_TABLE_SQL"
+
+echo ""
+echo "✅ Database $RAG_DB and $METADATA_DB fully configured"

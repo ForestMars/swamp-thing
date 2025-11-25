@@ -25,7 +25,7 @@ from .metadata_tool import metadata_query_tool
 from .reranker_agent import reranked_query_tool
 
 # Use local Ollama models
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:latest")  # or "gemma2:latest"
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:7b")  # Match actual model name
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 llm = Ollama(
@@ -94,12 +94,13 @@ else:  # FunctionCalling
 print(f"[INFO] Using agent type: {AGENT_TYPE}")
 
 
-def execute_agent_query(user_query: str):
+async def execute_agent_query_async(user_query: str, timeout: float = 60.0):
     """
-    Execute a query through the orchestrator agent.
+    Execute a query through the orchestrator agent (async version).
     
     Args:
         user_query: User's natural language question
+        timeout: Maximum time to wait for response (seconds)
         
     Returns:
         Agent's response as a string
@@ -107,45 +108,74 @@ def execute_agent_query(user_query: str):
     import asyncio
     
     print(f"\n[ORCHESTRATOR] Starting query for: {user_query}")
+    print(f"[ORCHESTRATOR] Timeout set to {timeout} seconds")
     
     try:
-        # Debug: print available methods
-        available_methods = [m for m in dir(final_orchestrator_agent) if not m.startswith('_')]
-        print(f"[DEBUG] Available agent methods: {available_methods[:10]}...")  # Show first 10
+        print("[DEBUG] Running agent as workflow...")
         
-        # Try different methods in order of preference
-        if hasattr(final_orchestrator_agent, 'chat'):
-            print("[DEBUG] Using 'chat' method")
-            response = final_orchestrator_agent.chat(user_query)
-        elif hasattr(final_orchestrator_agent, 'query'):
-            print("[DEBUG] Using 'query' method")
-            response = final_orchestrator_agent.query(user_query)
-        elif hasattr(final_orchestrator_agent, 'run'):
-            print("[DEBUG] Using 'run' method (async)")
-            # The run method needs to be called within an async context
-            # Use asyncio.run() to properly manage the event loop
-            response = asyncio.run(final_orchestrator_agent.run(user_query))
-        elif hasattr(final_orchestrator_agent, 'achat'):
-            print("[DEBUG] Using 'achat' method (async)")
-            response = asyncio.run(final_orchestrator_agent.achat(user_query))
-        else:
-            raise AttributeError(
-                f"Agent has none of the expected methods (chat, query, run, achat). "
-                f"Available methods: {available_methods}"
-            )
+        # Run with timeout
+        async def run_with_timeout():
+            # The agent needs 'user_msg' parameter, not 'input'
+            handler = final_orchestrator_agent.run(user_msg=user_query)
+            
+            # Collect all events
+            result = None
+            async for event in handler.stream_events():
+                event_name = type(event).__name__
+                print(f"[DEBUG] Event: {event_name}")
+                
+                # Look for the final result
+                if hasattr(event, 'response'):
+                    result = event.response
+                    print(f"[DEBUG] Found response: {str(result)[:100]}...")
+                elif hasattr(event, 'output'):
+                    result = event.output
+                    print(f"[DEBUG] Found output: {str(result)[:100]}...")
+                elif hasattr(event, 'msg'):
+                    result = event.msg
+                    print(f"[DEBUG] Found msg: {str(result)[:100]}...")
+            
+            if result is None:
+                # If streaming didn't work, try getting the final result directly
+                result = await handler
+            
+            return result
+        
+        result = await asyncio.wait_for(run_with_timeout(), timeout=timeout)
         
         print("\n[ORCHESTRATOR] Final Answer Received.")
-        return str(response)
+        return str(result)
+    
+    except asyncio.TimeoutError:
+        print(f"\n[ERROR] Agent execution timed out after {timeout} seconds")
+        raise TimeoutError(f"Agent did not complete within {timeout} seconds")
     
     except Exception as e:
         print(f"\n[ERROR] Agent execution failed: {e}")
+        print(f"[DEBUG] Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         raise
+
+
+def execute_agent_query(user_query: str, timeout: float = 60.0):
+    """
+    Synchronous wrapper for the async agent query.
+    
+    Args:
+        user_query: User's natural language question
+        timeout: Maximum time to wait for response (seconds)
+        
+    Returns:
+        Agent's response as a string
+    """
+    import asyncio
+    return asyncio.run(execute_agent_query_async(user_query, timeout))
 
 
 if __name__ == "__main__":
     test_query = (
-        "Of the 100 most recent documents focused on litigation involving asbestos poisoning, "
-        "what were the major rulings and what date were they filed?"
+        "What did the inspector say to Vic?"
     )
     
     try:
