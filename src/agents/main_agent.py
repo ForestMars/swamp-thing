@@ -122,23 +122,12 @@ def execute_agent_query(user_query: str):
             response = final_orchestrator_agent.query(user_query)
         elif hasattr(final_orchestrator_agent, 'run'):
             print("[DEBUG] Using 'run' method (async)")
-            # Run async method in event loop
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            response = loop.run_until_complete(final_orchestrator_agent.run(user_query))
+            # The run method needs to be called within an async context
+            # Use asyncio.run() to properly manage the event loop
+            response = asyncio.run(final_orchestrator_agent.run(user_query))
         elif hasattr(final_orchestrator_agent, 'achat'):
             print("[DEBUG] Using 'achat' method (async)")
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                
-            response = loop.run_until_complete(final_orchestrator_agent.achat(user_query))
+            response = asyncio.run(final_orchestrator_agent.achat(user_query))
         else:
             raise AttributeError(
                 f"Agent has none of the expected methods (chat, query, run, achat). "
