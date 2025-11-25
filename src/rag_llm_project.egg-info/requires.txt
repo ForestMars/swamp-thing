@@ -1,0 +1,7 @@
+llama-index
+llama-index-llms-anthropic
+llama-index-embeddings-huggingface
+python-dotenv
+pyspark
+tika
+psycopg2-binary
