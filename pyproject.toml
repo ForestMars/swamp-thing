@@ -1,51 +1,33 @@
-[tool.poetry]
-# Even though we're using uv, we follow the Poetry style for dependency specification
-# as it's the most common and standard way to list dependencies in pyproject.toml.
-# === REQUIRED METADATA START ===
+[project]
 name = "rag-llm-project"
 version = "0.1.0"
-description = "Large-scale RAG system for legal documents"
-authors = ["Your Name <mars@mlops.nyc>"]
-# === REQUIRED METADATA END ===
-license = "MIT"
+description = "Large-scale RAG system for documents"
+authors = [{name = "Forest Mars", email = "mars@mlops.nyc"}]
+license = {text = "MIT"}
 readme = "README.md"
-packages = [{include = "swamp_thing"}] 
+requires-python = ">=3.13"
+
+# ALL DEPENDENCIES
+dependencies = [
+    # CORE FRAMEWORK & RAG
+    "llama-index",
+    "llama-index-llms-anthropic",
+    "llama-index-embeddings-huggingface",
+    "python-dotenv",
+
+    # DATA PROCESSING & SCALABILITY
+    "pyspark",
+    "tika",
+
+    # DATABASE CONNECTORS
+    "psycopg2-binary"
+]
+
+# Optional dependencies (commented out)
+# [project.optional-dependencies]
+# agentic = ["fastembed", "sentence-transformers", "cohere-rerank"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.poetry.dependencies]
-python = "^3.13" # Specify the Python version you need
-
-# CORE FRAMEWORK & RAG
-llama-index = "*"
-llama-index-llms-anthropic = "*"
-llama-index-embeddings-huggingface = "*"
-python-dotenv = "*"
-
-# DATA PROCESSING & SCALABILITY (The "Engine" Components)
-# NOTE: pyspark and tika often have complex non-Python dependencies.
-# Conda is often better for these, but we list them for completeness.
-pyspark = "*"
-tika = "*"
-
-# DATABASE CONNECTORS (for Agent 1: Metadata Filter)
-psycopg2-binary = "*"
-
-# AGENTIC/ML OPTIMIZATION
-fastembed = { version = "*", optional = true }
-sentence-transformers = { version = "*", optional = true }
-
-# OPTIONAL: For Re-Ranking (Future Task 2.3)
-cohere-rerank = { version = "*", optional = true }
-
-# [tool.poetry.group.dev.dependencies] (optional: for testing tools like pytest)
-# pytest = "*"
-
-[build-system]
-requires = ["poetry-core"] # uv supports Poetry/PDM/Rye/Hatchlock specs
-build-backend = "poetry.core.masonry.api"
-
-# [tool.uv]
-# lock-mode = "hash" # Example of uv specific config if needed
