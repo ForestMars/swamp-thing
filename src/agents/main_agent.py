@@ -1,13 +1,20 @@
 # /src/agents/main_agent.py
 
+import logging
+from llama_index.core import Settings
 from llama_index.core.agent import ReActAgent
 from llama_index.llms.anthropic import Anthropic
 from llama_index.core.tools import QueryEngineTool, FunctionTool
 import os
 
+# --- 0. Set Global Debugging and Verbosity ---
+# CRITICAL for seeing SQL queries, vector search operations, and ReAct steps.
+logging.basicConfig(level=logging.DEBUG)
+Settings.debug = True 
+
 # --- Import Tools from Previous Tasks ---
-# Note: You would import the actual initialized tools here,
-# assuming metadata_query_tool is defined in metadata_tool.py
+# These are the actual working tools that the agent will decide to use.
+# NOTE: Ensure metadata_tool.py and reranker_agent.py are implemented and accessible.
 from .metadata_tool import metadata_query_tool 
 from .reranker_agent import reranked_query_tool 
 
@@ -15,8 +22,7 @@ from .reranker_agent import reranked_query_tool
 # Uses the LLM model from the global_config.yaml
 LLM_MODEL = os.getenv("LLM_MODEL", "claude-3-opus-20240229") 
 
-# --- 2. Initialize LLM ---
-# This LLM acts as the central brain, deciding which tool to call and when.
+# --- 2. Initialize LLM (The Decision Brain) ---
 llm = Anthropic(
     model=LLM_MODEL, 
     temperature=0.1, 
@@ -24,19 +30,16 @@ llm = Anthropic(
 ) 
 
 # --- 3. Define the Complete Toolset ---
-# The order here defines the priority/visibility to the LLM's reasoning loop.
 tools = [
     metadata_query_tool, # Agent 1: Executes SQL filter (The starting point)
     reranked_query_tool  # Agent 2/3: Executes filtered vector search and synthesis (The heavy lifting)
 ]
 
 # --- 4. Create the Orchestrating Agent ---
-# We use the ReActAgent which forces the LLM to 'Reason' before 'Act' (calling a tool).
 final_orchestrator_agent = ReActAgent.from_tools(
     tools,
     llm=llm,
-    verbose=True, # Set to False in production
-    # System prompt is critical to force sequential logic
+    verbose=True, # <-- Max Verbosity for Agent Thought/Action steps
     system_prompt=(
         "You are an expert Legal RAG Agent. Your goal is to answer questions by "
         "accessing specific document subsets. ALWAYS use the 'metadata_query_tool' FIRST "
@@ -45,7 +48,7 @@ final_orchestrator_agent = ReActAgent.from_tools(
     )
 )
 
-# --- 5. Execution Example (How the ragAPI.ts would call the agent) ---
+# --- 5. Execution Function ---
 def execute_agent_query(user_query: str):
     print(f"\n[ORCHESTRATOR] Starting query for: {user_query}")
     
@@ -56,11 +59,14 @@ def execute_agent_query(user_query: str):
     return str(response)
 
 if __name__ == "__main__":
-    # Simulate a complex, filtered query
+    # Simulate a complex, filtered query to test the full chain
     test_query = (
         "Of the 100 most recent documents focused on litigation involving asbestos poisoning, "
         "what were the major rulings and what date were they filed?"
     )
+    
+    # Ensure all components (DB, Ollama) are running before executing this.
     final_result = execute_agent_query(test_query)
+    
     print("\n--- FINAL SYNTHESIS ---")
     print(final_result)
