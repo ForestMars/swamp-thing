@@ -2,7 +2,7 @@ pyproject.toml
 src/agents/main_agent.py
 src/agents/metadata_tool.py
 src/agents/reranker_agent.py
-src/agents/semantic_retreiver_agent.py
+src/agents/semantic_retriever_agent.py
 src/rag_llm_project.egg-info/PKG-INFO
 src/rag_llm_project.egg-info/SOURCES.txt
 src/rag_llm_project.egg-info/dependency_links.txt
