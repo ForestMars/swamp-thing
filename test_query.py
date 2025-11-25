@@ -1,12 +1,20 @@
 #!/usr/bin/env python
 """
 Quick test script to verify data is in the database and queryable.
-Run with: uv run python test_query.py
+Run with: 
+  uv run python test_query.py                          # Query all docs
+  uv run python test_query.py --doc <doc_id> <query>  # Query specific doc
+  uv run python test_query.py "your question"          # Query all docs
+
+Example: 
+  uv run python test_query.py --doc 4b5b8ace159f "What is this about?"
 """
 
+import sys
 from pathlib import Path
 from sqlalchemy import create_engine, text
 from llama_index.core import VectorStoreIndex, Settings
+from llama_index.core.vector_stores import MetadataFilter, MetadataFilters, FilterOperator
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 from llama_index.vector_stores.postgres import PGVectorStore
@@ -30,9 +38,14 @@ with metadata_engine.connect() as conn:
     print(f"✅ Found {count} documents in metadata catalog")
     
     if count > 0:
-        result = conn.execute(text("SELECT id, topic, doc_path FROM document_metadata_catalog LIMIT 5"))
+        print("\nAvailable documents:")
+        result = conn.execute(text("SELECT id, topic, doc_path FROM document_metadata_catalog"))
         for row in result:
-            print(f"   - {row[0]}: {row[1]} ({row[2]})")
+            filename = Path(row[2]).name if row[2] else "unknown"
+            print(f"   [{row[0]}] {filename} - {row[1]}")
+    else:
+        print("⚠️  No documents found. Run: uv run python ingest_documents.py")
+        sys.exit(1)
 
 # 2. Check vector database
 print("\n2. Checking vector store...")
@@ -67,16 +80,44 @@ Settings.llm = Ollama(
 )
 
 index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
-query_engine = index.as_query_engine()
 print("✅ Query engine ready")
 
 # 4. Test query
 print("\n4. Running test query...")
 print("-" * 60)
-test_query = "What is this document about?"
-print(f"Query: {test_query}\n")
 
-response = query_engine.query(test_query)
+# Parse arguments
+doc_id = None
+query_text = None
+
+if len(sys.argv) > 1:
+    if sys.argv[1] == "--doc" and len(sys.argv) > 3:
+        doc_id = sys.argv[2]
+        query_text = " ".join(sys.argv[3:])
+    else:
+        query_text = " ".join(sys.argv[1:])
+else:
+    query_text = "What documents are available and what are they about?"
+
+# Create query engine with optional document filter
+if doc_id:
+    print(f"Filtering to document: {doc_id}")
+    filters = MetadataFilters(
+        filters=[
+            MetadataFilter(
+                key="doc_id",
+                value=doc_id,
+                operator=FilterOperator.EQ,
+            )
+        ]
+    )
+    query_engine = index.as_query_engine(filters=filters)
+else:
+    query_engine = index.as_query_engine()
+
+print(f"Query: {query_text}\n")
+
+response = query_engine.query(query_text)
 print(f"Answer: {response}\n")
 print("-" * 60)
 
@@ -84,4 +125,6 @@ print("\n" + "=" * 60)
 print("TEST COMPLETE")
 print("=" * 60)
 print("✅ Data is in the database and queryable")
-print("\nYou can now use your playground to query this data.")
+print("\nUsage:")
+print("  uv run python test_query.py                    # General query")
+print("  uv run python test_query.py 'your question'    # Specific question")
