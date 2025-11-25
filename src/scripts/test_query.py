@@ -1,14 +1,20 @@
 #!/usr/bin/env python
 """
-Quick test script to verify data is in the database and queryable.
-Run with: 
-  uv run python test_query.py                          # Query all docs
-  uv run python test_query.py --doc <doc_id> <query>  # Query specific doc
-  uv run python test_query.py "your question"          # Query all docs
+/scripts/test_query.py
 
-Example: 
-  uv run python test_query.py --doc 4b5b8ace159f "What is this about?"
+Quick test script to verify data is in the database and queryable.
+Used for smoke testing and basic validation.
+
+Author: Forest Mars
+Version: 0.2
+
+Run with: 
+  uv run python scripts/test_query.py                          # Query all docs
+  uv run python scripts/test_query.py --doc <doc_id> <query>  # Query specific doc
+  uv run python scripts/test_query.py "your question"          # Query all docs
 """
+__version__ = '0.2'
+__author__ = 'Forest Mars'
 
 import sys
 from pathlib import Path
