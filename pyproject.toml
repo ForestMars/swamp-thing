@@ -1,13 +1,19 @@
 [tool.poetry]
 # Even though we're using uv, we follow the Poetry style for dependency specification
 # as it's the most common and standard way to list dependencies in pyproject.toml.
+# === REQUIRED METADATA START ===
 name = "rag-llm-project"
 version = "0.1.0"
 description = "Large-scale RAG system for legal documents"
-authors = ["Your Name <you@example.com>"]
+authors = ["Your Name <mars@mlops.nyc>"]
+# === REQUIRED METADATA END ===
 license = "MIT"
 readme = "README.md"
-packages = [{include = "your_project_name"}] # Change this to your project structure
+packages = [{include = "swamp_thing"}] 
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 python = "^3.13" # Specify the Python version you need
