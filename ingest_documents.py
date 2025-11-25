@@ -153,11 +153,32 @@ for cluster_id, doc_indices in clusters.items():
     print(f"   - {cluster_names[cluster_id]}: {len(doc_indices)} documents")
 
 # Insert metadata with cluster assignments
-print("\n6. Inserting document metadata with clusters...")
+print("\n6. Inserting clusters and document metadata...")
 with metadata_engine.connect() as conn:
+    # First, insert clusters
     for cluster_id, doc_indices in clusters.items():
         cluster_name = cluster_names[cluster_id]
         
+        # Insert or update cluster
+        cluster_sql = text("""
+            INSERT INTO document_clusters (cluster_id, cluster_name, doc_count)
+            VALUES (:id, :name, :count)
+            ON CONFLICT (cluster_id) DO UPDATE SET
+                cluster_name = EXCLUDED.cluster_name,
+                doc_count = EXCLUDED.doc_count,
+                updated_at = NOW()
+        """)
+        
+        conn.execute(cluster_sql, {
+            "id": cluster_id,
+            "name": cluster_name,
+            "count": len(doc_indices)
+        })
+        conn.commit()
+        print(f"   ✅ Cluster {cluster_id}: [{cluster_name}] with {len(doc_indices)} documents")
+    
+    # Then, insert documents with cluster references
+    for cluster_id, doc_indices in clusters.items():
         for idx in doc_indices:
             doc = documents[idx]
             filename = doc.metadata.get('file_name', 'unknown')
@@ -165,12 +186,12 @@ with metadata_engine.connect() as conn:
             file_path = doc.metadata.get('file_path', '')
             date = datetime.now().date()
             
-            # Insert or update
+            # Insert or update document
             insert_sql = text("""
-                INSERT INTO document_metadata_catalog (id, topic, date, jurisdiction, doc_path)
-                VALUES (:id, :topic, :date, :jurisdiction, :doc_path)
+                INSERT INTO document_metadata_catalog (id, cluster_id, date, jurisdiction, doc_path)
+                VALUES (:id, :cluster_id, :date, :jurisdiction, :doc_path)
                 ON CONFLICT (id) DO UPDATE SET
-                    topic = EXCLUDED.topic,
+                    cluster_id = EXCLUDED.cluster_id,
                     date = EXCLUDED.date,
                     jurisdiction = EXCLUDED.jurisdiction,
                     doc_path = EXCLUDED.doc_path
@@ -178,14 +199,12 @@ with metadata_engine.connect() as conn:
             
             conn.execute(insert_sql, {
                 "id": doc_id,
-                "topic": cluster_name,
+                "cluster_id": cluster_id,
                 "date": date,
-                "jurisdiction": f"cluster_{cluster_id}",
+                "jurisdiction": "personal",
                 "doc_path": file_path
             })
             conn.commit()
-            
-            print(f"   ✅ {filename} → [{cluster_name}] (ID: {doc_id})")
 
 # Setup vector store
 print("\n7. Setting up vector store...")
@@ -218,7 +237,11 @@ with metadata_engine.connect() as conn:
     print(f"✅ Metadata records: {count}")
     
     # Show cluster distribution
-    result = conn.execute(text("SELECT topic, COUNT(*) FROM document_metadata_catalog GROUP BY topic"))
+    result = conn.execute(text("""
+        SELECT c.cluster_name, c.doc_count 
+        FROM document_clusters c 
+        ORDER BY c.cluster_id
+    """))
     print("\nCluster distribution:")
     for row in result:
         print(f"   - {row[0]}: {row[1]} documents")
