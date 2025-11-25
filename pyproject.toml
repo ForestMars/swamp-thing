@@ -14,13 +14,13 @@ dependencies = [
     "llama-index-llms-anthropic",
     "llama-index-embeddings-huggingface",
     "python-dotenv",
-
     # DATA PROCESSING & SCALABILITY
     "pyspark",
     "tika",
-
     # DATABASE CONNECTORS
-    "psycopg2-binary"
+    "psycopg2-binary",
+    "llama-index-postprocessor-flag-embedding-reranker>=0.4.1",
+    "pyyaml>=6.0.3",
 ]
 
 # Optional dependencies (commented out)

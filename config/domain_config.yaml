@@ -1,0 +1,30 @@
+# -----------------------------------------------------------------------
+# DOMAIN-SPECIFIC PREFERENCES: CLIENT/DOMAIN DATA SOURCES & RULES
+# This file defines dynamic settings for a particular client or legal domain.
+# -----------------------------------------------------------------------
+
+# Unique identifier for the domain configuration.
+domain_name: "my_writing_2025"
+
+# --- MULTI-CLOUD DATA ENDPOINTS (CRITICAL: Targets for data ingestion and filtering) ---
+# List of URIs (S3, GCS, or Local FS) where the source documents are located.
+# The application uses this list to inform the Metadata Filter Agent (Agent 1)
+# and the ingestion pipeline.
+data_endpoints:
+#  - "s3://bank-legal-data-lake/2024/agi/"
+#  - "gs://external-client-data/litigation/us-west/"
+#  - "file:///mnt/local_data/2024_scans/"
+   - "file://Users/forestmars/lake/"
+
+# --- METADATA DATABASE CONFIGURATION (Agent 1: Metadata Filter Source) ---
+# Connection string for the specific SQL/NoSQL catalog storing document metadata (Date, Topic, Path).
+# This is used by Agent 1 to perform pre-vector search filtering.
+metadata_db_uri: "postgresql://rag_user:wrinklepants@localhost:5432/metadata_catalog"
+
+# --- RETRIEVAL LOGIC LIMITS ---
+# Maximum number of documents Agent 1 will retrieve from the metadata catalog before vector search.
+# This filters the haystack BEFORE semantic search.
+document_limit: 100 
+# Maximum number of final, semantically relevant chunks (K) passed to the LLM (Agent 3).
+# Optimizing this value reduces LLM cost and improves synthesis focus. (Uses Task 2.3 Reranker)
+retrieval_k: 5

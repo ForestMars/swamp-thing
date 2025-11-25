@@ -13,3 +13,5 @@ Requires-Dist: python-dotenv
 Requires-Dist: pyspark
 Requires-Dist: tika
 Requires-Dist: psycopg2-binary
+Requires-Dist: llama-index-postprocessor-flag-embedding-reranker>=0.4.1
+Requires-Dist: pyyaml>=6.0.3
