@@ -1,8 +1,16 @@
 #!/usr/bin/env python
 """
-Document ingestion script: Load documents from ~/lake into both databases.
-Run with: uv run python ingest_documents.py
+/src/ingestion/ingest_documents.py
+
+Document ingestion pipeline with auto-clustering.
+Reads documents from configured endpoints, embeds content,
+discovers clusters, and stores in databases.
+
+Author: Forest Mars
+Version: 0.2
 """
+__version__ = '0.2'
+__author__ = 'Forest Mars'
 
 import os
 from pathlib import Path
