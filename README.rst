@@ -5,7 +5,7 @@ Swamp Thing
 Overview
 --------
 
-This repository is a prototype for a document-focused retrieval-augmented generation (RAG) system built around Postgres, LlamaIndex, and local Ollama models. The design is intentionally multi-stage: document metadata is filtered before semantic search, then candidate chunks are reranked, and finally an LLM synthesizes the answer.
+This repository is a prototype for a document-focused retrieval-augmented generation (RAG) system for multi-stage document intelligence: metadata is filtered before semantic search, then candidate chunks are reranked, and finally an LLM synthesizes the answer.
 
 The project is best thought of as an experimental research and orchestration layer for local document search rather than a finished production application.
 
