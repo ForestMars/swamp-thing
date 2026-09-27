@@ -1,6 +1,7 @@
 
-Swamp Thing
-===========
+.. image:: swamp_thing.png
+:alt: Swamp Thing logo
+
 
 Overview
 --------
